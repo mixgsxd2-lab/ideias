@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: ideias
+    runtime: static
+    plan: free
+    staticPublishPath: .
+    buildCommand: echo "sem build"
