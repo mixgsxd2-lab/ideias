@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ideias</title>
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--muted:#8a8a8a;--line:#ececec;--hover:#f5f5f5}
+:root[data-theme="dark"]{--bg:#111;--fg:#eee;--muted:#777;--line:#242424;--hover:#1c1c1c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;transition:background .2s,color .2s}
+main{max-width:680px;margin:0 auto;padding:48px 20px 120px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px}
+h1{font-size:22px;font-weight:600;margin:0;letter-spacing:-.02em}
+button{font:inherit;color:var(--muted);background:none;border:0;cursor:pointer;padding:2px 6px;border-radius:6px}
+button:hover{background:var(--hover);color:var(--fg)}
+input{font:inherit;color:var(--fg);background:none;border:0;outline:0;width:100%;padding:6px 0}
+input::placeholder{color:var(--muted)}
+.add{border-bottom:1px solid var(--line);margin-bottom:12px}
+.node{margin-left:0}
+.children{margin-left:11px;padding-left:14px;border-left:1px solid var(--line)}
+.row{display:flex;align-items:center;gap:4px;border-radius:8px;padding:0 4px}
+.row:hover{background:var(--hover)}
+.row .acts{opacity:0;display:flex;transition:opacity .15s}
+.row:hover .acts,.row:focus-within .acts{opacity:1}
+.tog{width:22px;flex:none;text-align:center;transition:transform .15s}
+.tog.open{transform:rotate(90deg)}
+.tog.none{visibility:hidden}
+.txt{flex:1}
+.cnt{color:var(--muted);font-size:13px;padding-right:4px}
+.sub{margin:2px 0 6px 26px}
+.empty{color:var(--muted);text-align:center;margin-top:60px}
+@media(hover:none){.row .acts{opacity:1}}
+</style>
+</head>
+<body>
+<main>
+  <header><h1>ideias</h1><button id="theme" title="Modo escuro">☾</button></header>
+  <div class="add"><input id="new" placeholder="Nova ideia… (Enter)" autofocus></div>
+  <div id="tree"></div>
+</main>
+<script>
+const KEY='ideias:data',TKEY='ideias:theme';
+let data=[];
+try{data=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}};
+const uid=()=>Math.random().toString(36).slice(2,10);
+const $=s=>document.querySelector(s);
+
+// tema
+let theme;try{theme=localStorage.getItem(TKEY)}catch(e){}
+if(!theme)theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+function applyTheme(){document.documentElement.dataset.theme=theme;$('#theme').textContent=theme==='dark'?'☀':'☾';try{localStorage.setItem(TKEY,theme)}catch(e){}}
+$('#theme').onclick=()=>{theme=theme==='dark'?'light':'dark';applyTheme()};
+applyTheme();
+
+function find(list,id,parent=null){for(const n of list){if(n.id===id)return{n,list,parent};const r=find(n.kids,id,n);if(r)return r}return null}
+let adding=null; // id do nó que está recebendo sub-ideia
+const count=n=>n.kids.reduce((a,k)=>a+1+count(k),0);
+
+function render(){
+  const t=$('#tree');t.innerHTML='';
+  if(!data.length){t.innerHTML='<div class="empty">Nenhuma ideia ainda.</div>';return}
+  data.forEach(n=>t.appendChild(node(n)));
+  const f=document.querySelector('.sub input');if(f)f.focus();
+}
+function node(n){
+  const el=document.createElement('div');el.className='node';
+  const row=document.createElement('div');row.className='row';
+  const tog=document.createElement('button');
+  tog.className='tog'+(n.kids.length?'':' none')+(n.open?' open':'');tog.textContent='›';
+  tog.onclick=()=>{n.open=!n.open;save();render()};
+  const txt=document.createElement('input');txt.className='txt';txt.value=n.text;
+  txt.onchange=()=>{n.text=txt.value.trim()||n.text;save();render()};
+  row.append(tog,txt);
+  if(n.kids.length&&!n.open){const c=document.createElement('span');c.className='cnt';c.textContent=count(n);row.appendChild(c)}
+  const acts=document.createElement('div');acts.className='acts';
+  const plus=document.createElement('button');plus.textContent='+';plus.title='Adicionar sub-ideia';
+  plus.onclick=()=>{n.open=true;adding=n.id;render()};
+  const del=document.createElement('button');del.textContent='✕';del.title='Apagar';
+  del.onclick=()=>{if(n.kids.length&&!confirm('Apagar esta ideia e suas sub-ideias?'))return;const r=find(data,n.id);r.list.splice(r.list.indexOf(n),1);save();render()};
+  acts.append(plus,del);row.appendChild(acts);el.appendChild(row);
+  if(n.open){
+    if(adding===n.id){
+      const s=document.createElement('div');s.className='sub';
+      const i=document.createElement('input');i.placeholder='Sub-ideia… (Enter)';
+      i.onkeydown=e=>{
+        if(e.key==='Enter'&&i.value.trim()){n.kids.push({id:uid(),text:i.value.trim(),open:false,kids:[]});save();render()}
+        if(e.key==='Escape'){adding=null;render()}
+      };
+      i.onblur=()=>{if(!i.value.trim()){adding=null;render()}};
+      s.appendChild(i);el.appendChild(s);
+    }
+    if(n.kids.length){const c=document.createElement('div');c.className='children';n.kids.forEach(k=>c.appendChild(node(k)));el.appendChild(c)}
+  }
+  return el;
+}
+$('#new').onkeydown=e=>{
+  const v=e.target.value.trim();
+  if(e.key==='Enter'&&v){data.unshift({id:uid(),text:v,open:false,kids:[]});e.target.value='';save();render()}
+};
+render();
+</script>
+</body>
+</html>
